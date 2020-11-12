@@ -3,7 +3,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { FormGroup, FormControl } from '@angular/forms';
 import { Subscription, Observable } from 'rxjs';
 import { tap, map } from 'rxjs/operators';
-import { storeGlobal, ISettings, retrieveGlobal } from 'models';
+import { storeGlobal, ISettings, retrieveGlobal, executeForAllGameTabs } from 'models';
 import { DatabaseService } from 'src/app/shared/database.service';
 import { ChatLogsService } from 'src/app/shared/chat-logs.service';
 import { humanFileSize } from 'src/app/shared/utils/human-file-size';
@@ -21,6 +21,10 @@ export class OptionsComponent implements OnDestroy {
       beeps: new FormControl(false),
       friendOnline: new FormControl(false),
       friendOffline: new FormControl(false)
+    }),
+    tools: new FormGroup({
+      chatRoomRefresh: new FormControl(true),
+      fpsCounter: new FormControl(false)
     })
   });
   public chatLogsSize$: Observable<string>;
@@ -31,7 +35,7 @@ export class OptionsComponent implements OnDestroy {
     private snackBar: MatSnackBar
   ) {
     retrieveGlobal('settings').then(settings => {
-      this.settingsForm.setValue(settings, {
+      this.settingsForm.patchValue(settings, {
         emitEvent: false
       });
     });
@@ -42,10 +46,15 @@ export class OptionsComponent implements OnDestroy {
           beeps: value.notifications.beeps,
           friendOnline: value.notifications.friendOnline,
           friendOffline: value.notifications.friendOffline
+        },
+        tools: {
+          chatRoomRefresh: value.tools.chatRoomRefresh,
+          fpsCounter: value.tools.fpsCounter
         }
       } as ISettings)),
       tap(settings => storeGlobal('settings', settings)),
-      tap(() => this.showSavedNotice())
+      tap(() => this.showSavedNotice()),
+      tap(settings => executeForAllGameTabs(tab => chrome.tabs.sendMessage(tab.id, settings)))
     ).subscribe();
 
     this.chatLogsSize$ = this.chatLogsService.getTotalSize().pipe(
@@ -83,12 +92,21 @@ export class OptionsComponent implements OnDestroy {
           transaction.objectStore(storeName).openCursor().onsuccess = event => {
             const cursor = (event.target as IDBRequest<IDBCursorWithValue>).result;
             if (cursor) {
-              allObjects.push(cursor.value);
+              const value = cursor.value;
+              delete value.id;
+              allObjects.push(value);
               cursor.continue();
             } else {
               exportObject[storeName] = allObjects;
               if (objectStoreNames.length === Object.keys(exportObject).length) {
-                resolve(JSON.stringify(exportObject));
+                resolve(JSON.stringify(exportObject, (key, value) => {
+                  if (typeof value === 'string' && value.startsWith('data:image/png;base64,')) {
+                    // Base64 encoded images are too big for JSON stringify.
+                    // Skip them until I get around to building a better export mechanism.
+                    return null;
+                  }
+                  return value;
+                }, 2));
               }
             }
           };
@@ -107,12 +125,10 @@ export class OptionsComponent implements OnDestroy {
         const reader = new FileReader();
         reader.onload = () => {
           console.log(`Loaded file: ${humanFileSize((reader.result as string).length)}`);
-          this.clearDatabase().then(() => {
-            return this.importDatabase(reader.result as string);
-          })
-          .catch(error => {
-            console.error(error);
-          });
+          this.importDatabase(reader.result as string)
+            .catch(error => {
+              console.error(error);
+            });
         };
         reader.readAsText(file);
       } else {
@@ -122,13 +138,13 @@ export class OptionsComponent implements OnDestroy {
     input.click();
   }
 
-  private async clearDatabase() {
-    return new Promise(async (resolve, reject) => {
+  public async clearDatabase() {
+    if (chrome.extension.getBackgroundPage().confirm('Are you sure you want to delete everything?')) {
       console.log('Clearing database...');
       const objectStoreNames = await this.databaseService.objectStoreNames;
       const transaction = await this.databaseService.transaction(objectStoreNames, 'readwrite');
       transaction.onerror = event => {
-        reject(event);
+        console.error(event);
       };
       let count = 0;
       objectStoreNames.forEach(storeName => {
@@ -137,13 +153,11 @@ export class OptionsComponent implements OnDestroy {
           count++;
           console.log(`Done ${storeName}`);
           if (count === objectStoreNames.length) {
-            // cleared all object stores
             console.log('Done with all');
-            resolve();
           }
         };
       });
-    });
+    }
   }
 
   private async importDatabase(jsonString: string) {
@@ -164,7 +178,13 @@ export class OptionsComponent implements OnDestroy {
       objectStoreNames.forEach(storeName => {
         console.log(`Importing ${storeName}...`);
         let count = 0;
-        importObject[storeName].forEach((toAdd: {}) => {
+        if (!importObject[storeName]) {
+          return;
+        }
+        importObject[storeName].forEach((toAdd: any) => {
+          if (toAdd.id) {
+            delete toAdd.id;
+          }
           const request = transaction.objectStore(storeName).add(toAdd);
           request.onsuccess = () => {
             count++;

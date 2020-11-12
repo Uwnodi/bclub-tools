@@ -1,5 +1,6 @@
 import { Component, Input } from '@angular/core';
 import { IChatLog } from 'models';
+import { DialogBundleService } from '../../../shared/dialog-bundle.service';
 
 @Component({
   selector: 'app-chat-line',
@@ -7,10 +8,17 @@ import { IChatLog } from 'models';
   styleUrls: ['./chat-line.component.scss']
 })
 export class ChatLineComponent {
-  @Input()
-  public chatLog: IChatLog;
+  private cleanChatLog: IChatLog;
 
-  constructor() { }
+  @Input()
+  public get chatLog(): IChatLog {
+    return this.cleanChatLog;
+  }
+  public set chatLog(chatLog: IChatLog) {
+    this.cleanChatLog = this.copyChatLog(chatLog);
+  }
+
+  constructor(private dialogBundleService: DialogBundleService) { }
 
   public getColor(color: string) {
     return color || 'gray';
@@ -25,5 +33,71 @@ export class ChatLineComponent {
     const b = color.substring(5, 7);
     // tslint:disable-next-line: max-line-length
     return '#' + (255 - Math.floor((255 - parseInt(r, 16)) * 0.1)).toString(16) + (255 - Math.floor((255 - parseInt(g, 16)) * 0.1)).toString(16) + (255 - Math.floor((255 - parseInt(b, 16)) * 0.1)).toString(16);
+  }
+
+  public isGeneralAction(message: string) {
+    return message.charAt(0) === '*';
+  }
+
+  public renderContent(chatLog: IChatLog): string {
+    let content = chatLog.content;
+
+    if (chatLog.type === 'Action' || chatLog.type === 'ServerMessage') {
+      content = chatLog.type === 'ServerMessage' ? 'ServerMessage' + content : content;
+      content = this.dialogBundleService.findDialog(content);
+      if (chatLog.dictionary) {
+        for (const dictionary of chatLog.dictionary) {
+          let replacement = String(dictionary.Text);
+          if (dictionary.Tag === 'DestinationCharacter') {
+            replacement += this.dialogBundleService.findDialog('\'s');
+          } else if (dictionary.TextToLookUp) {
+            replacement = this.dialogBundleService.findDialog(dictionary.TextToLookUp);
+          } else if (dictionary.AssetName) {
+            const entry = chatLog.dictionary.find(kvp => !!kvp.AssetGroupName);
+            replacement = this.dialogBundleService.findAssetName(dictionary.AssetName, entry && entry.AssetGroupName);
+          } else if (dictionary.AssetGroupName) {
+            replacement = this.dialogBundleService.findAssetGroupName(dictionary.AssetGroupName);
+          }
+
+          content = content.replace(dictionary.Tag, replacement);
+        }
+      }
+    }
+
+    if (chatLog.type === 'Activity') {
+      content = this.dialogBundleService.findActivity(content);
+      if (chatLog.dictionary) {
+        for (const dictionary of chatLog.dictionary) {
+          if (dictionary.Text) {
+            content = content.replace(dictionary.Tag, String(dictionary.Text));
+          }
+        }
+      }
+    }
+
+    return content;
+  }
+
+  private copyChatLog(chatLog: IChatLog): IChatLog {
+    const cleanChatLog = {
+      ...chatLog,
+      content: this.sanitizeMessage(chatLog.content)
+    };
+
+    if (chatLog.type === 'Whisper' && !chatLog.target) {
+      // Fill in the target so that we can display whispers more clearly
+      cleanChatLog.target = {
+        name: chatLog.session.name,
+        memberNumber: chatLog.session.memberNumber
+      };
+    }
+
+    return cleanChatLog;
+  }
+
+  private sanitizeMessage(message: string): string {
+    message = message.replace(/&lt;/g, '<');
+    message = message.replace(/&gt;/g, '>');
+    return message;
   }
 }

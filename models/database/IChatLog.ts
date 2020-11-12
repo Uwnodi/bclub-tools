@@ -3,11 +3,21 @@ import { ChatRoomMessageType } from 'models';
 export interface IChatLog {
   chatRoom: string;
   content: string;
+  dictionary?: IChatLogDictionary[];
   sender: IChatSender;
   session: IChatSessionPerspective;
   target?: IWhisperTarget;
   timestamp: Date;
   type: ChatRoomMessageType;
+}
+
+export interface IChatLogDictionary {
+  Tag: string;
+  Text?: string | number;
+  TextToLookUp?: string;
+  MemberNumber?: number;
+  AssetName?: string;
+  AssetGroupName?: string;
 }
 
 export interface IChatSender {

@@ -1,17 +1,41 @@
 import {
-  IClientMessage, IEnrichedChatRoomChat, IChatRoomChat
+  IClientMessage, IEnrichedChatRoomChat, IChatRoomChat, IChatRoomCharacter
 } from '../../../models';
 
 export function listenForUserSentEvents(handshake: string) {
+  function mapCharacter(character: IChatRoomCharacter) {
+    return {
+      ID: character.ID,
+      Name: character.Name,
+      Title: character.Title,
+      Reputation: character.Reputation,
+      Creation: character.Creation,
+      Lovership: character.Lovership,
+      Description: character.Description,
+      Owner: character.Owner,
+      MemberNumber: character.MemberNumber,
+      LabelColor: character.LabelColor,
+      ItemPermission: character.ItemPermission,
+      Ownership: character.Ownership,
+    };
+  }
   const eventsToForward = {
     ChatRoomChat: (data: IChatRoomChat) => ({
-      ...data,
-      ChatRoom: window.ChatRoomData,
-      SessionId: window.Player.OnlineID,
-      Sender: window.Player.MemberNumber,
-      PlayerName: window.Player.Name,
-      MemberNumber: window.Player.MemberNumber,
-      TargetName: data.Target ? window.ChatRoomData.Character.find(c => c.MemberNumber === data.Target).Name : undefined,
+      Content: data.Content,
+      Dictionary: data.Dictionary,
+      Target: data.Target,
+      Type: data.Type,
+      ChatRoom: {
+        Background: ChatRoomData.Background,
+        Description: ChatRoomData.Description,
+        Name: ChatRoomData.Name,
+        Character: ChatRoomData.Character.map(mapCharacter)
+      },
+      SessionId: Player.OnlineID,
+      Sender: Player.MemberNumber,
+      PlayerName: Player.Name,
+      MemberNumber: Player.MemberNumber,
+      TargetName: data.Target ? ChatRoomData.Character.find(c => c.MemberNumber === data.Target).Name : undefined,
       Timestamp: new Date()
     } as IEnrichedChatRoomChat)
   } as {[event: string]: (data: any) => any };
@@ -43,8 +67,8 @@ export function listenForUserSentEvents(handshake: string) {
         return targetValue;
       }
     }
-  } as ProxyHandler<typeof window.ServerSocket>;
+  } as ProxyHandler<typeof ServerSocket>;
 
-  const proxy = new Proxy(window.ServerSocket, handler);
-  window.ServerSocket = proxy;
+  const proxy = new Proxy(ServerSocket, handler);
+  ServerSocket = proxy;
 }

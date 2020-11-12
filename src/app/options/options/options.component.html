@@ -19,6 +19,24 @@
     </mat-list-item>
     <mat-divider></mat-divider>
   </mat-list>
+  <mat-list formGroupName="tools">
+    <h2 matSubheader>Tools</h2>
+    <p matSubheader class="warning">
+      <mat-icon>warning</mat-icon>
+      You need to reload the game after changing these settings.
+    </p>
+    <mat-list-item>
+      <mat-checkbox formControlName="chatRoomRefresh">
+        Automatically refresh chat room search
+      </mat-checkbox>
+    </mat-list-item>
+    <mat-list-item>
+      <mat-checkbox formControlName="fpsCounter">
+        FPS counter (experimental)
+      </mat-checkbox>
+    </mat-list-item>
+    <mat-divider></mat-divider>
+  </mat-list>
 </ng-container>
 <ng-container>
   <mat-list>
@@ -27,10 +45,19 @@
       Total size of stored chat logs: {{ chatLogsSize$ | async }}
     </mat-list-item>
     <mat-list-item>
-      <button mat-button mat-stroked-button color="primary" class="primary-character-btn" (click)="downloadDatabase()">Export database</button>
+      <button mat-button mat-stroked-button color="primary" (click)="downloadDatabase()">Export database</button>
     </mat-list-item>
     <mat-list-item>
-      <button mat-button mat-stroked-button color="primary" class="primary-character-btn" (click)="uploadDatabase()">Import database</button>
+      <button mat-button mat-stroked-button color="primary" (click)="uploadDatabase()">Import database</button>
+    </mat-list-item>
+    <mat-divider></mat-divider>
+  </mat-list>
+</ng-container>
+<ng-container>
+  <mat-list>
+    <h2 matSubheader>Danger zone</h2>
+    <mat-list-item>
+      <button mat-button mat-stroked-button color="warn" (click)="clearDatabase()">Delete database</button>
     </mat-list-item>
     <mat-divider></mat-divider>
   </mat-list>

@@ -1,7 +1,7 @@
 {
   "name": "Bondage Club Tools",
   "description" : "Enriches the experience for Bondage Club.",
-  "version": "0.0.6",
+  "version": "0.2.0",
   "manifest_version": 2,
   "icons": {
     "128": "assets/bclub-logo.png"
@@ -11,7 +11,6 @@
     "persistent": false
   },
   "browser_action": {
-    "default_popup": "index.html",
     "default_title": "Bondage Club Tools",
     "default_icon": {
       "128": "assets/bclub-logo.png"
@@ -20,8 +19,12 @@
   "content_scripts": [
     {
       "matches": [
+        "http://bondageprojects.com/*",
+        "https://bondageprojects.com/*",
         "http://www.bondageprojects.com/*",
         "https://www.bondageprojects.com/*",
+        "http://bondageprojects.elementfx.com/*",
+        "https://bondageprojects.elementfx.com/*",
         "http://www.bondageprojects.elementfx.com/*",
         "https://www.bondageprojects.elementfx.com/*"
       ],
@@ -35,18 +38,16 @@
     "notifications",
     "storage",
     "unlimitedStorage",
+    "http://bondageprojects.com/*",
+    "https://bondageprojects.com/*",
     "http://www.bondageprojects.com/*",
     "https://www.bondageprojects.com/*",
+    "http://bondageprojects.elementfx.com/*",
+    "https://bondageprojects.elementfx.com/*",
     "http://www.bondageprojects.elementfx.com/*",
     "https://www.bondageprojects.elementfx.com/*"
   ],
   "options_ui": {
     "page": "index.html?page=/options"
-  },
-  "browser_specific_settings": {
-    "gecko": {
-      "id": "{69662ce5-5fcc-4d0a-ad93-b8b663bd47ac}",
-      "strict_min_version": "60.0"
-    }
   }
 }

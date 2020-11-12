@@ -1,8 +1,18 @@
-import { Component, TrackByFunction } from '@angular/core';
-import { MatTableDataSource } from '@angular/material/table';
-import { IAccountQueryResultItem, IPlayer, IChatRoomSearchResult, retrieve, IChatRoomCharacter, onChanged, IOwnership } from 'models';
+import { Component, TrackByFunction, ViewChild } from '@angular/core';
+import { MatSort, MatTableDataSource } from '@angular/material';
+import {
+  IStoredPlayer,
+  IChatRoomSearchResult,
+  retrieve,
+  IChatRoomCharacter,
+  onChanged,
+  IOwnership,
+  IReputation,
+  IMember,
+  MemberTypeOrder,
+} from 'models';
 import { ChatLogsService } from 'src/app/shared/chat-logs.service';
-import { IMember } from 'src/app/shared/models';
+import { IPlayerCharacter } from 'src/app/shared/models';
 
 @Component({
   selector: 'app-popup',
@@ -10,15 +20,28 @@ import { IMember } from 'src/app/shared/models';
   styleUrls: ['./popup.component.scss']
 })
 export class PopupComponent {
+  @ViewChild('onlineFriendsSort', { static: true }) set onlineFriendsSort(sort: MatSort) {
+    this.onlineFriends.sort = sort;
+    this.onlineFriends.sortingDataAccessor = (data, sortHeaderId) => {
+      if (sortHeaderId === 'type') {
+        return MemberTypeOrder[data[sortHeaderId]];
+      }
+      if (sortHeaderId === 'memberName') {
+        return data[sortHeaderId].toLocaleUpperCase();
+      }
+      return data[sortHeaderId];
+    };
+  }
+
   public characters = new MatTableDataSource<IChatRoomCharacter>();
   public chatRooms = new MatTableDataSource<IChatRoomSearchResult>();
-  public onlineFriends = new MatTableDataSource<IAccountQueryResultItem>();
-  public player: IPlayer;
-  public alternativeCharacters: IMember[];
+  public onlineFriends = new MatTableDataSource<IMember>();
+  public player: IStoredPlayer;
+  public alternativeCharacters: IPlayerCharacter[];
 
   public characterColumns = ['name', 'owner', 'permission', 'reputation'];
   public chatRoomColumns = ['name', 'creator', 'members', 'description'];
-  public onlineFriendColumns = ['name', 'chatRoom', 'type'];
+  public onlineFriendColumns = ['memberName', 'chatRoomName', 'type'];
 
   get loggedIn() {
     return this.player && this.player.MemberNumber > 0;
@@ -27,10 +50,10 @@ export class PopupComponent {
   constructor(private chatLogsService: ChatLogsService) {
     chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
       const tabId = tabs[0].id;
-      retrieve(tabId, 'chatRoomCharacter').then(characters => this.characters.data = characters);
-      retrieve(tabId, 'chatRoomSearchResult').then(chatRooms => this.chatRooms.data = chatRooms);
-      retrieve(tabId, 'onlineFriends').then(friends => this.onlineFriends.data = friends);
       retrieve(tabId, 'player').then(player => this.player = player);
+      retrieve(tabId, 'onlineFriends').then(friends => this.onlineFriends.data = friends);
+      retrieve(tabId, 'chatRoomCharacter').then(characters => this.characters.data = characters);
+      // retrieve(tabId, 'chatRoomSearchResult').then(chatRooms => this.chatRooms.data = chatRooms);
 
       onChanged(tabId, (changes, areaName) => {
         if (areaName !== 'local') {
@@ -55,7 +78,7 @@ export class PopupComponent {
       });
     });
 
-    this.chatLogsService.findMembers().then(members => {
+    this.chatLogsService.findPlayerCharacters().then(members => {
       this.alternativeCharacters = members.filter(m => {
         if (this.loggedIn) {
           return m.memberNumber !== this.player.MemberNumber;
@@ -87,9 +110,9 @@ export class PopupComponent {
     }
   }
 
-  public dominantReputationToText(character: IChatRoomCharacter) {
+  public dominantReputationToText(reputation: IReputation[]) {
     let dominant = 0;
-    const rep = character.Reputation.find(r => r.Type === 'Dominant');
+    const rep = (reputation || []).find(r => r.Type === 'Dominant');
     if (rep) {
       dominant = rep.Value;
     }
@@ -102,31 +125,24 @@ export class PopupComponent {
     return 'Neutral';
   }
 
-  public ownerToText(owner: string, ownership: IOwnership) {
-    if (ownership) {
-      if (ownership.MemberNumber) {
-        return `${ownership.Name} (${ownership.MemberNumber}) - ` +
-          (ownership.Stage === 0 ? 'On trial for ' : 'Collared for ') +
-          Math.floor((new Date().getTime() - ownership.Start) / 86400000).toString() +
-          ' days';
-      } else if (ownership.StartTrialOfferedByMemberNumber) {
-        return `Offered a trial by ${ownership.StartTrialOfferedByMemberNumber}`;
-      } else if (ownership.EndTrialOfferedByMemberNumber) {
-        return `Offered a collar by ${ownership.EndTrialOfferedByMemberNumber}`;
-      }
-    } else if (owner) {
-      return owner;
+  public ownerToText(ownership: IOwnership) {
+    if (ownership && ownership.MemberNumber) {
+      return `${ownership.Name} (${ownership.MemberNumber}) - ` +
+        (ownership.Stage === 0 ? 'On trial for ' : 'Collared for ') +
+        Math.floor((new Date().getTime() - ownership.Start) / 86400000).toString() +
+        ' days';
     }
     return 'None';
   }
 
   public permissionToText(permission: number) {
     /*
-    PermissionLevel0	Everyone, no exceptions
-    PermissionLevel1	Everyone, except blacklist
-    PermissionLevel2	Owner, whitelist & Dominants
-    PermissionLevel3	Owner and whitelist only
-    PermissionLevel4	Owner only
+    PermissionLevel0 Everyone, no exceptions
+    PermissionLevel1 Everyone, except blacklist
+    PermissionLevel2 Owner, Lover, whitelist & Dominants
+    PermissionLevel3 Owner, Lover and whitelist only
+    PermissionLevel4 Owner and Lover only
+    PermissionLevel5 Owner only
     */
     switch (permission) {
       case 0:
@@ -134,10 +150,12 @@ export class PopupComponent {
       case 1:
         return 'Everyone, except blacklist';
       case 2:
-        return 'Owner, whitelist & Dominants';
+        return 'Owner, Lover, whitelist & Dominants';
       case 3:
-        return 'Owner and whitelist only';
+        return 'Owner, Lover and whitelist only';
       case 4:
+        return 'Owner and Lover only';
+      case 5:
         return 'Owner only';
       default:
         return permission;
@@ -146,5 +164,5 @@ export class PopupComponent {
 
   public trackByCharacter: TrackByFunction<IChatRoomCharacter> = (_, character) => character.MemberNumber;
   public trackByChatRoom: TrackByFunction<IChatRoomSearchResult> = (_, chatRoom) => chatRoom.Name;
-  public trackByFriend: TrackByFunction<IAccountQueryResultItem> = (_, friend) => friend.MemberNumber;
+  public trackByFriend: TrackByFunction<IMember> = (_, friend) => friend.memberNumber;
 }

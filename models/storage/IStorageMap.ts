@@ -1,4 +1,5 @@
-import { IAccountQueryResultItem, IChatRoomCharacter, IChatRoomSearchResult, IPlayer, ISettings } from 'models';
+import { IChatRoomCharacter, IChatRoomSearchResult, IStoredPlayer, ISettings } from 'models';
+import { IMember } from 'models/database';
 
 export const GLOBAL_STORAGE_KEYS = [
   'settings'
@@ -21,6 +22,6 @@ export interface IGlobalStorageMap {
 export interface IStorageMap {
   'chatRoomCharacter': IChatRoomCharacter[];
   'chatRoomSearchResult': IChatRoomSearchResult[];
-  'onlineFriends': IAccountQueryResultItem[];
-  'player': IPlayer;
+  'onlineFriends': IMember[];
+  'player': IStoredPlayer;
 }
